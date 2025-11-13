@@ -53,4 +53,4 @@ if __name__ == '__main__':
     retrainer = pre_pro.temp_nn_wrap('cuda', spt_dataloader, model_config=network_info['model config'],
                                     optimizer=spt_optimizer, net = retrain_net)
 
-    retrainer.SP_T_train(100, prints=True, saving= True, save_path='nets/SPT/spt_250_350_vwvfvbe.pt', ly =5 )
+    retrainer.MSE_train(100, prints=True, saving= True, save_path='nets/MSE/MSE_250_350_retrain.pt', ly =5 )
