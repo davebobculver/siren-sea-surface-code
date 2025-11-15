@@ -579,13 +579,16 @@ class temp_nn_wrap:
         return avg_loss, epoch
     
     def SPT_debugging(self,num_epochs,
-                        prints = False, saving = False, save_path =None, lx = 0, ly = 0 , lt = 0):
+                        prints = False, saving = False, save_path =None, lx = 0, ly = 0 , lt = 0,
+                        ver_dataloader = None):
         mse = torch.nn.MSELoss()
         reg_losses = []
         mse_losses = []
+        total_losses = []
+        mse_ver = []
         for epoch in range(num_epochs):
-            epoch_loss = 0
             num_batches = 0
+
             for batch_idx, (batch_x, batch_y) in enumerate(self.dataloader):   # DataLoader gives you batches
                 # Move to GPU
                 batch_x = batch_x.to(self.device)
@@ -596,17 +599,10 @@ class temp_nn_wrap:
 
                 loss1 = Losses.spt_reg(batch_x, net=self.net, lx = lx,ly =ly, lt =lt)
                 loss2 = mse(self.net(batch_x), batch_y)
-
                 loss = loss1 + loss2
 
                 loss.backward()
                 self.optimizer.step()
-                
-                # Track progress
-                epoch_loss += loss.item()
-                num_batches += 1
-                reg_losses.append(loss1.item())
-                mse_losses.append(loss2.item())
                 
                 if prints:
                     if batch_idx % 10== 0:
@@ -614,12 +610,36 @@ class temp_nn_wrap:
 
                 torch.cuda.empty_cache()
                 gc.collect()
-            
-            avg_loss = epoch_loss / num_batches
+                
+                num_batches += 1
+        
+            reg_epoch, mse_epoch, total_epoch = [0.0,0.0,0.0]
+            for (batch_x, batch_y) in self.dataloader:
+                batch_x = batch_x.to(self.device)
+                batch_y = batch_y.to(self.device)
+                reg_epoch += Losses.spt_reg(batch_x, net=self.net, lx = lx,ly =ly, lt =lt).item()
+                mse_epoch += mse(self.net(batch_x), batch_y).item()
+                total_epoch += reg_epoch + mse_epoch
+        
+
+            reg_losses.append(reg_epoch/num_batches)
+            mse_losses.append(mse_epoch/num_batches)
+            total_losses.append(total_epoch/num_batches)
+
+
+            if ver_dataloader is not None:
+                mse_ver_epoch = 0.0
+                for (batch_x, batch_y) in ver_dataloader:
+                    batch_x = batch_x.to(self.device)
+                    batch_y = batch_y.to(self.device)
+                    mse_ver_epoch += mse(self.net(batch_x), batch_y).item()
+                mse_ver_epoch /= len(ver_dataloader)
+                mse_ver.append(mse_ver_epoch)
+                
 
             torch.cuda.empty_cache()
             if prints:
-                print(f'Epoch {epoch} Complete - Avg Loss: {avg_loss:.6f}')
+                print(f'Epoch {epoch} Complete - Avg Loss: {total_epoch:.6f}')
             if saving:
                 torch.save({'model_state_dict': self.net.state_dict(),
                 'optimizer_state_dict': self.optimizer.state_dict(),
@@ -627,7 +647,15 @@ class temp_nn_wrap:
                 'model config': self.model_config,
             }, save_path)
                 
+        losses_dict = {
+            'reg_losses': reg_losses,
+            'mse_losses': mse_losses,
+            'total_losses': total_losses}
+        
+        if ver_dataloader is not None:
+            losses_dict['mse_ver'] = mse_ver
 
+        
         gc.collect()
         torch.cuda.empty_cache()
-        return mse_losses, reg_losses
+        return losses_dict
