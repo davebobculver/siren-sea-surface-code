@@ -1,7 +1,11 @@
 
 'modules set up'
-
 import os
+
+os.environ["OMP_NUM_THREADS"] = "6"
+os.environ["MKL_NUM_THREADS"] = "6"
+os.environ["NUMEXPR_NUM_THREADS"] = "6"
+
 import multiprocessing
 multiprocessing.set_start_method('spawn', force=True)
 from Modules import pre_pro
@@ -12,6 +16,9 @@ from Modules.Losses import crit
 import numpy as np
 from Modules.beams import beam_trim
 import matplotlib.pyplot as plt
+
+torch.set_num_threads(6)
+torch.set_num_interop_threads(6)
 
 
 'Training Dataloader'
@@ -48,19 +55,23 @@ ver_dataloader = DataLoader(dataset, pin_memory=True,shuffle = True, num_workers
 print(len(spt_dataloader))
 
 
-epochs, alpha = [500, 1]
+epochs, alpha = [10000, 5]
 
-loss_curve = 'data/e_500_a_1.pt'
+loss_curve = 'data/e_10000_a_5.pt'
 
 network_info = torch.load('nets/MSE/MSE_one_frame.pt', weights_only=True)
 retrain_net = Net(torch.cos, *network_info['model config'])
 retrain_net.to('cuda')
 spt_optimizer = torch.optim.Adam(retrain_net.parameters(), lr = 1e-3 )
 
-retrainer = pre_pro.temp_nn_wrap('cuda', spt_dataloader, model_config=network_info['model config'],
-                                  optimizer=spt_optimizer, net = retrain_net)
 
-losses = retrainer.SPT_debugging(epochs, prints=True, saving= True,
-                                  save_path='nets/SPT/spt_loss_curves.pt', ly =alpha, ver_dataloader = ver_dataloader )
+
+if __name__ == '__main__':
+
+    retrainer = pre_pro.temp_nn_wrap('cuda', spt_dataloader, model_config=network_info['model config'],
+                                    optimizer=spt_optimizer, net = retrain_net)
+
+    losses = retrainer.SPT_debugging(epochs, prints=True, saving= True,
+                                    save_path='nets/SPT/spt_loss_curves.pt', ly =alpha, ver_dataloader = ver_dataloader )
 
 torch.save(losses, loss_curve)
