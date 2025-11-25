@@ -578,17 +578,18 @@ class temp_nn_wrap:
         torch.cuda.empty_cache()
         return avg_loss, epoch
     
-    def SPT_debugging(self,num_epochs,
+    def SPT_debugging(self,max_num_epochs,
                         prints = False, saving = False, save_path =None, lx = 0, ly = 0 , lt = 0,
-                        ver_dataloader = None):
+                        ver_dataloader = None, stopping_crit=None):
         mse = torch.nn.MSELoss()
         reg_losses = []
         mse_losses = []
         total_losses = []
         mse_ver = []
-        for epoch in range(num_epochs):
+        stopping = torch.zeros(max_num_epochs)
+        for epoch in range(max_num_epochs):
             num_batches = 0
-
+            reg_epoch, mse_epoch, total_epoch = 0.0, 0.0, 0.0
             for batch_idx, (batch_x, batch_y) in enumerate(self.dataloader):   # DataLoader gives you batches
                 # Move to GPU
                 batch_x = batch_x.to(self.device)
@@ -617,9 +618,13 @@ class temp_nn_wrap:
             for (batch_x, batch_y) in self.dataloader:
                 batch_x = batch_x.to(self.device)
                 batch_y = batch_y.to(self.device)
-                reg_epoch += Losses.spt_reg(batch_x, net=self.net, lx = lx,ly =ly, lt =lt).item()
-                mse_epoch += mse(self.net(batch_x), batch_y).item()
-                total_epoch += reg_epoch + mse_epoch
+
+                reg_batch = Losses.spt_reg(batch_x, net=self.net, lx=lx, ly=ly, lt=lt).item()
+                mse_batch = mse(self.net(batch_x), batch_y).item()
+
+                reg_epoch += reg_batch
+                mse_epoch += mse_batch
+                total_epoch += (reg_batch + mse_batch)
         
 
             reg_losses.append(reg_epoch/num_batches)
@@ -636,7 +641,6 @@ class temp_nn_wrap:
                 mse_ver_epoch /= len(ver_dataloader)
                 mse_ver.append(mse_ver_epoch)
                 
-
             torch.cuda.empty_cache()
             if prints:
                 print(f'Epoch {epoch} Complete - Avg Loss: {total_epoch:.6f}')
@@ -646,6 +650,16 @@ class temp_nn_wrap:
                 'epoch': epoch,
                 'model config': self.model_config,
             }, save_path)
+                
+            stopping[epoch] = mse_ver_epoch
+            'this method can totally be changed. When I rea make this class outsource this to another function for debugging.'
+            if epoch> 40:
+                moving_window = stopping[epoch-20:epoch]
+                moving_window_avg = moving_window.mean()
+                if stopping[epoch]- moving_window_avg > stopping_crit:
+                    print('stopped_training at epoch: {epoch}')
+                    break
+            
                 
         losses_dict = {
             'reg_losses': reg_losses,

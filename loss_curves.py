@@ -66,12 +66,12 @@ spt_optimizer = torch.optim.Adam(retrain_net.parameters(), lr = 1e-3 )
 
 
 
-if __name__ == '__main__':
 
-    retrainer = pre_pro.temp_nn_wrap('cuda', spt_dataloader, model_config=network_info['model config'],
-                                    optimizer=spt_optimizer, net = retrain_net)
 
-    losses = retrainer.SPT_debugging(epochs, prints=True, saving= True,
-                                    save_path='nets/SPT/spt_loss_curves.pt', ly =alpha, ver_dataloader = ver_dataloader )
+retrainer = pre_pro.temp_nn_wrap('cuda', spt_dataloader, model_config=network_info['model config'],
+                                optimizer=spt_optimizer, net = retrain_net)
+
+losses = retrainer.SPT_debugging(epochs, prints=True, saving= True,
+                                save_path='nets/SPT/spt_loss_curves.pt', ly =alpha, ver_dataloader = ver_dataloader )
 
 torch.save(losses, loss_curve)
