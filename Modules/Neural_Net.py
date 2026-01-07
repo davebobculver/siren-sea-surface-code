@@ -19,6 +19,8 @@ class Net(torch.nn.Module):
         for layer in self.hidden_layers:
             if self.act == torch.relu:
                 torch.nn.init.kaiming_normal_(layer.weight, nonlinearity='relu')
+            elif self.act == torch.sin or self.act == torch.cos:
+                torch.nn.init.uniform_(layer.weight, -np.sqrt(6 / layer.in_features), np.sqrt(6 / layer.in_features))
             else:
                 torch.nn.init.xavier_normal_(layer.weight)
             layer.bias.data.fill_(0.1)

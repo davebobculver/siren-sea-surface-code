@@ -2,8 +2,12 @@
 'Break apart pre_pro into more professional code'
 
 import torch
+from sklearn.preprocessing import StandardScaler as SS
+from sklearn.preprocessing import MinMaxScaler as MM
 from Modules.beams import beam_trim
 from torch.utils.data import DataLoader
+import numpy as np
+
 
 
 def prepare_tensors(data):
@@ -30,19 +34,55 @@ def in_out(all_data, beams, frames = range(10)):
     ins, outs = zip(*(temp_data(all_data, f, beams) for f in frames))
     return torch.cat(ins), torch.cat(outs)
 
+
 class data_gen:
     'This class will be the the set up into making the data loader from the data set'
     'The inputs are coming from beams'
-    def __init__(self, data, beams, frames, bin_width = .02, time_col =2):
+    def __init__(self, data, beams, frames, bin_width = .02, time_col =2, normalize = False):
         self.data = data
         self.beams = beams
         self.frames = frames
         self.inputs, self.outputs =  in_out(
             data, beams, frames=frames)
 
+        self.scalers = None
+        if normalize == 'SS':
+            sc_in = SS()
+            self.inputs = torch.tensor(sc_in.fit_transform(self.inputs), dtype=torch.float32)*(torch.pi/2)
+
+            sc_out = SS()
+            self.outputs = torch.tensor(sc_out.fit_transform(self.outputs), dtype=torch.float32)*(torch.pi/2)
+
+            self.scalers = [sc_in, sc_out]
+    
+
+        if normalize == 'minmax':
+            sc_in = MM(feature_range=(-np.pi/2,np.pi/2))
+            self.inputs = torch.tensor(sc_in.fit_transform(self.inputs), dtype=torch.float32)
+
+            sc_out = MM(feature_range=(-np.pi/2,np.pi/2))
+            self.outputs = torch.tensor(sc_out.fit_transform(self.outputs), dtype=torch.float32)
+            
+            self.scalers = [sc_in, sc_out]
+
+        if isinstance(normalize, list):
+            'only do this for verfication data'
+            sc_in = normalize[0]
+            self.inputs = torch.tensor(sc_in.transform(self.inputs), dtype=torch.float32)
+
+            sc_out = normalize[1]
+            self.outputs = torch.tensor(sc_out.transform(self.outputs), dtype=torch.float32)
+
+            self.scalers = [sc_in, sc_out]
+
         self.dataset = FrameDataset(self.inputs, self.outputs,
                                     bin_width= bin_width,
-                                    time_col=time_col) 
+                                    time_col=time_col)
+
+    def get_scalers(self):
+        'this function can return the scalers used in normalization'
+        'Useful for inverse transforming later'
+        return self.scalers
 
     def get_dataset(self):
         'this function can calls the dataloader forward'

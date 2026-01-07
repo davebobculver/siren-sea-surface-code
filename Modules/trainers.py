@@ -1,10 +1,10 @@
 import torch
 import numpy as np
-import Losses
+import Modules.Losses as Losses
 
 
 def stop(losses, idx, crit = .5, window =20 ,start_idx = 50):
-    'losses in a numpy array of shapoe (n)'
+    'losses is a numpy array of shape (n)'
     if idx < start_idx :
         return False
     else:
@@ -26,8 +26,17 @@ def stop(losses, idx, crit = .5, window =20 ,start_idx = 50):
         pred_y = np.polyval(coeffs, y)
         err_y = y - pred_y
 
-        "Check if y is outised of 2 std's"
-        return y > 2*std
+        "Check if y is outised of 2 std's times crit"
+        return y > 2*std*crit
+    
+
+def tolerance_check(L0, L1, tol):
+    crit = np.abs(L1 - L0)/L0 < tol
+
+    if crit:
+        return True
+    else:
+        return False
 
             
 
@@ -37,12 +46,13 @@ def stop(losses, idx, crit = .5, window =20 ,start_idx = 50):
 class training:
     'This class is a more polisher version of what I have done below'
     
-    def __init__(self, device, dataloader, model_config, optimizer, net):
+    def __init__(self, device, dataloader, model_config, optimizer, net, scalers = None):
         self.dataloader = dataloader
         self.net = net 
         self.optimizer = optimizer
         self.model_config = model_config
         self.device = device
+        self.scalers = scalers
 
 
     def set_params(self, net_params, optim_params):
@@ -52,7 +62,7 @@ class training:
 
     def MSE_training(self,max_num_epochs,
                         prints = False, saving = False, save_path =None,
-                        ver_dataloader = None, stopping_crit=None):
+                        ver_dataloader = None, stopping_crit=None, tolerance = .01):
         
         mse = torch.nn.MSELoss()
         mse_losses, mse_ver = [[], []]
@@ -83,6 +93,7 @@ class training:
                 batch_y = batch_y.to(self.device)
                 mse_batch = mse(self.net(batch_x), batch_y).item()
                 mse_epoch += mse_batch
+            mse_epoch /= num_batch
             mse_losses.append(mse_epoch/num_batch)
                 
             mse_ver_epoch = 0.0
@@ -94,11 +105,12 @@ class training:
             mse_ver.append(mse_ver_epoch)
 
             'Stopping Crits'
-            stopping[epoch] = mse_ver_epoch
+            # Loss Spike Detection
+            stopping[epoch] = mse_epoch
 
             try:
                 should_stop = stop(stopping, epoch, crit=stopping_crit)
-                if not isinstance(should_stop, bool):
+                if not isinstance(should_stop, (bool, np.bool_)):
                     raise TypeError(f"stop() returned a non-bool: {type(should_stop)}")
                 if should_stop:
                     print(f"Early stopping triggered at epoch {epoch}. Validation loss spike detected.")
@@ -106,6 +118,19 @@ class training:
             except ValueError as e:
                 print(f"Skipping early stopping check: {e}")
 
+            # Convergence Check: Training Loss
+            if epoch > 1:
+                if tolerance_check(mse_losses[-2], mse_losses[-1], tol=tolerance):
+                    print(f"Training has converged at epoch {epoch}.")
+                    break
+
+            # Convergence Check: Validation Loss
+            if epoch > 1:
+                if tolerance_check(mse_ver[-2], mse_ver[-1], tol=tolerance):
+                    print(f"Validation has converged at epoch {epoch}.")
+                    break
+                    
+            # low error check
             if mse_epoch/(.06**2)<1:
                 print(f'Low training error: {mse_epoch}<1')
                 print(f"Finished training at epoch {epoch}")
@@ -119,6 +144,7 @@ class training:
                 'optimizer_state_dict': self.optimizer.state_dict(),
                 'epoch': epoch,
                 'model config': self.model_config,
+                'scalers': self.scalers
             }, save_path)
                     
         losses_dict = {
@@ -127,9 +153,119 @@ class training:
 
         return losses_dict
 
+    def reg_training(self,max_num_epochs,
+                        prints = False, saving = False, save_path =None, lx = 0, ly = 0 , lt = 0,
+                        ver_dataloader = None, stopping_crit=None, tolerance = .01):
         
-                
+        mse = torch.nn.MSELoss()
+        mse_losses,reg_loss, mse_ver, total_loss = [[],[],[],[]]
 
+        stopping = np.zeros(max_num_epochs)
+        num_epochs = 0
+        for epoch in range(max_num_epochs):
+            num_batch = 0 
+            for batch_idx, (batch_x, batch_y) in enumerate(self.dataloader):   # DataLoader gives you batches
+                # Move to GPU
+                batch_x = batch_x.to(self.device)
+                batch_y = batch_y.to(self.device)
+                self.optimizer.zero_grad(set_to_none = True)
+
+                loss1 = Losses.spt_reg(batch_x, net=self.net, lx = lx,ly =ly, lt =lt)
+                loss2 = mse(self.net(batch_x), batch_y)
+                loss = loss1+loss2
+                loss.backward()
+                self.optimizer.step()            
+                if prints:
+                    if batch_idx % 10== 0:
+                        print(f'Epoch {epoch}, Batch {batch_idx}, Loss: {loss.item():.6f}')
+                num_batch+= 1
+
+
+
+            mse_epoch = 0.0
+            reg_epoch = 0.0
+            total_epoch = 0.0
+            for (batch_x, batch_y) in self.dataloader:
+                batch_x = batch_x.to(self.device)
+                batch_y = batch_y.to(self.device)
+
+                mse_batch = mse(self.net(batch_x), batch_y).item()
+                mse_epoch += mse_batch
+
+                reg_batch = Losses.spt_reg(batch_x, net=self.net, lx = lx,ly =ly, lt =lt)
+                reg_epoch += reg_batch
+
+                total_batch = mse_batch+reg_batch
+                total_epoch += total_batch
+
+            mse_losses.append(mse_epoch/num_batch)
+            reg_loss.append(reg_epoch/num_batch)
+            total_loss.append(total_epoch/num_batch)
+                
+            mse_ver_epoch = 0.0
+            n = 0
+            for (batch_x, batch_y) in ver_dataloader:
+                batch_x = batch_x.to(self.device)
+                batch_y = batch_y.to(self.device)
+                mse_ver_epoch += mse(self.net(batch_x), batch_y).item()
+                n+= 1
+            mse_ver_epoch /= n
+            mse_ver.append(mse_ver_epoch)
+
+            'Stopping Crits'
+            # Loss Spike Detection
+            stopping[epoch] = mse_ver_epoch
+
+            try:
+                should_stop = stop(stopping, epoch, crit=stopping_crit)
+                if not isinstance(should_stop, (bool, np.bool_)):
+                    raise TypeError(f"stop() returned a non-bool: {type(should_stop)}")
+                if should_stop:
+                    print(f"Early stopping triggered at epoch {epoch}. Validation loss spike detected.")
+                    break
+            except ValueError as e:
+                print(f"Skipping early stopping check: {e}")
+
+
+
+            # Convergence Check: Trainng Loss
+            if epoch > 1:
+                if tolerance_check(mse_losses[-2], mse_losses[-1], tol=tolerance):
+                    print(f"Training has converged at epoch {epoch}.")
+                    break
+
+
+            # Convergence Check: Validation Loss
+            if epoch > 1:
+                if tolerance_check(mse_ver[-2], mse_ver[-1], tol=tolerance):
+                    print(f"Validation has converged at epoch {epoch}.")
+                    break
+
+
+            if mse_epoch/(.06**2)<1.5:
+                print(f'Low training error: {mse_epoch}<1')
+                print(f"Finished training at epoch {epoch}")
+                break
+
+
+            if prints:
+                print(f'Epoch {epoch} Complete - Avg Loss: {mse_epoch:.6f}')
+            if saving:
+                torch.save({'model_state_dict': self.net.state_dict(),
+                'optimizer_state_dict': self.optimizer.state_dict(),
+                'epoch': epoch,
+                'model config': self.model_config,
+                'scalers': self.scalers
+            }, save_path)
+                    
+        losses_dict = {
+            'epoch': epoch,
+        'mse_losses': mse_losses,
+        'mse_ver':mse_ver,
+        'reg_loss':reg_loss,
+        'total_loss':total_loss}
+
+        return losses_dict
 
 
 
