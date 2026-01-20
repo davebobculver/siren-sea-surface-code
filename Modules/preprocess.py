@@ -4,7 +4,7 @@
 import torch
 from sklearn.preprocessing import StandardScaler as SS
 from sklearn.preprocessing import MinMaxScaler as MM
-from Modules.beams import beam_trim
+from Modules.beams import beam_trim ## Need to put back to Modules.beams after finished with work
 from torch.utils.data import DataLoader
 import numpy as np
 
@@ -34,16 +34,38 @@ def in_out(all_data, beams, frames = range(10)):
     ins, outs = zip(*(temp_data(all_data, f, beams) for f in frames))
     return torch.cat(ins), torch.cat(outs)
 
+def split(input, output, split=.8, mask =None):
+    if mask != None:
+        m = mask
+    else:
+        n = input.shape[0]
+        m = torch.rand(n) < split
+    ver_m = ~m
+
+    train_input, train_output = [input[m], output[m]]
+    ver_input, ver_output = [input[ver_m], output[ver_m]]
+
+    return train_input, train_output , ver_input, ver_output, m
+
+
 
 class data_gen:
     'This class will be the the set up into making the data loader from the data set'
     'The inputs are coming from beams'
-    def __init__(self, data, beams, frames, bin_width = .02, time_col =2, normalize = False):
+    def __init__(self, data, beams, frames, splits = .8,masker = None, bin_width = .02, time_col =2, normalize = False):
         self.data = data
         self.beams = beams
         self.frames = frames
         self.inputs, self.outputs =  in_out(
             data, beams, frames=frames)
+        
+        """If we are smart here we can do all our work just 
+        making the training and ver data loader here"""
+
+        'Take an 80/20 split of inputs and outputs.'
+        
+
+
 
         self.scalers = None
         if normalize == 'SS':
@@ -68,27 +90,40 @@ class data_gen:
         if isinstance(normalize, list):
             'only do this for verfication data'
             sc_in = normalize[0]
-            self.inputs = torch.tensor(sc_in.transform(self.inputs), dtype=torch.float32)
+            self.inputs = torch.tensor(sc_in.transform(self.inputs), dtype=torch.float32)*(torch.pi/2)
 
             sc_out = normalize[1]
-            self.outputs = torch.tensor(sc_out.transform(self.outputs), dtype=torch.float32)
+            self.outputs = torch.tensor(sc_out.transform(self.outputs), dtype=torch.float32)*(torch.pi/2)
 
             self.scalers = [sc_in, sc_out]
 
-        self.dataset = FrameDataset(self.inputs, self.outputs,
+        train_input, train_output, ver_input, ver_output,m = split(self.inputs,
+                                                                self.outputs,
+                                                                split = splits,
+                                                                mask =masker)
+        self.m = m
+
+        self.train_dataset = FrameDataset(train_input, train_output,
                                     bin_width= bin_width,
                                     time_col=time_col)
+        
+        self.ver_dataset = FrameDataset(ver_input, ver_output,
+                            bin_width= bin_width,
+                            time_col=time_col)
 
+    def get_mask(self):
+        "return mask for repeatability"
+        return self.m
     def get_scalers(self):
         'this function can return the scalers used in normalization'
         'Useful for inverse transforming later'
         return self.scalers
 
-    def get_dataset(self):
+    def get_datasets(self):
         'this function can calls the dataloader forward'
-        return self.dataset
+        return self.train_dataset, self.ver_dataset
 
-    def get_dataloader(self,
+    def get_dataloaders(self,
                         pin_memory=True,
                         shuffle = True,
                         num_workers=1,
@@ -97,11 +132,19 @@ class data_gen:
         
         'this does the final step'
         with torch.no_grad():
-            return DataLoader(self.dataset, pin_memory=pin_memory,
+            train_dataloader = DataLoader(self.train_dataset, pin_memory=pin_memory,
                             shuffle=shuffle,
                             num_workers=num_workers, 
                             persistent_workers=persistent_workers, 
-                            batch_size=batch_size)     
+                            batch_size=batch_size)
+            
+            ver_dataloader = DataLoader(self.ver_dataset, pin_memory=pin_memory,
+                            shuffle=shuffle,
+                            num_workers=num_workers, 
+                            persistent_workers=persistent_workers, 
+                            batch_size=batch_size) 
+
+            return train_dataloader, ver_dataloader    
         
 
 
