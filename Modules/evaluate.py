@@ -12,7 +12,7 @@ Considerations:
 
 import torch
 import numpy as np
-
+from sklearn.preprocessing import StandardScaler
 
 class Evaluator:
     def __init__(self, net, scalers, inputs):
@@ -20,26 +20,30 @@ class Evaluator:
         self.in_scaler = scalers[0]
         self.out_scaler = scalers[1]
         self.inputs = inputs
-        self.pi_half = torch.pi / 2
+        self.pi_half = torch.tensor(np.pi / 2, dtype=torch.float32).to(self.net.device())
     
     def scale_inputs(self):
         """Scale inputs using the input scaler"""
         if self.in_scaler is not None:
-            mean = torch.tensor(self.in_scaler.mean_, dtype=torch.float32, device=self.inputs.device)
-            std = torch.tensor(self.in_scaler.scale_, dtype=torch.float32, device=self.inputs.device)
-            # Apply standard scaling then scale to (-π/2, π/2)
-            scaled = ((self.inputs - mean) / std) * self.pi_half
-            return scaled
+            if isinstance(self.in_scaler, StandardScaler):
+                'Need to keep everything as a tensor so we can take gradients'
+                'This is the old package which i am routing in. The else statement is way better'
+                mean = torch.from_numpy(self.in_scaler.mean_).float().to(self.inputs.device)
+                scale = torch.from_numpy(self.in_scaler.scale_).float().to(self.inputs.device)
+                return ((self.inputs - mean) / scale) * self.pi_half
+            else:
+                return self.in_scaler.transform(self.inputs)
         return self.inputs
     
     def unscale_outputs(self, outputs):
         """Inverse transform outputs back to original scale"""
         if self.out_scaler is not None:
-            mean = torch.tensor(self.out_scaler.mean_, dtype = torch.float32, device=outputs.device)
-            std = torch.tensor(self.out_scaler.scale_, dtype = torch.float32, device=outputs.device)
-            # Undo (-π/2, π/2) scaling then undo standardization
-            unscaled = (outputs / self.pi_half) * std + mean
-            return unscaled
+            if isinstance(self.out_scaler, StandardScaler):
+                mean = torch.from_numpy(self.out_scaler.mean_).float().to(outputs.device)
+                scale = torch.from_numpy(self.out_scaler.scale_).float().to(outputs.device)
+                return (outputs/ self.pi_half) * scale + mean
+            else:
+                return self.out_scaler.inverse_transform(outputs)
         return outputs
     
     def net_eval(self):
@@ -47,6 +51,8 @@ class Evaluator:
         with torch.no_grad():
             scaled_inputs = self.scale_inputs()
             scaled_outputs = self.net(scaled_inputs)
+            print(f"Raw network output range: {scaled_outputs.min():.3f} to {scaled_outputs.max():.3f}")
+            
             outputs = self.unscale_outputs(scaled_outputs)
         return outputs
     
@@ -54,6 +60,7 @@ class Evaluator:
         """Evaluate network while keeping gradients"""
         scaled_inputs = self.scale_inputs()
         scaled_outputs = self.net(scaled_inputs)
+
         outputs = self.unscale_outputs(scaled_outputs)
         return outputs
     

@@ -2,7 +2,7 @@
 'Break apart pre_pro into more professional code'
 
 import torch
-from sklearn.preprocessing import StandardScaler as SS
+
 from sklearn.preprocessing import MinMaxScaler as MM
 from Modules.beams import beam_trim ## Need to put back to Modules.beams after finished with work
 from torch.utils.data import DataLoader
@@ -47,15 +47,45 @@ def split(input, output, split=.8, mask =None):
 
     return train_input, train_output , ver_input, ver_output, m
 
+class SS():
+    "PyTorch version of standard scaler for SIREN networks. Scales data to trainable range."
+    "Give it a new std"
+    def __init__(self, mean=None, std=None, new_std = 1.0):
+        self.mean = mean
+        self.std = std
+        self.new_std = new_std
+
+    def fit_transform(self, data):
+        """Fit and transform data to zero mean, unit variance"""
+        if isinstance(data, np.ndarray):
+            data = torch.tensor(data, dtype=torch.float32)
+        if self.mean is None:
+            self.mean = data.mean(dim=0)
+        if self.std is None:
+            self.std = data.std(dim=0)
+        return ((data - self.mean) / (self.std + 1e-8))*self.new_std
+
+    def transform(self, data):
+        """Transform data using fitted mean and std"""
+        if isinstance(data, np.ndarray):
+            data = torch.tensor(data, dtype=torch.float32)
+        return ((data - self.mean) / (self.std + 1e-8))*self.new_std
+
+    def inverse_transform(self, data):
+        """Reverse the scaling transformation"""
+        if isinstance(data, np.ndarray):
+            data = torch.tensor(data, dtype=torch.float32)
+        return (data/self.new_std) * self.std + self.mean
 
 
 class data_gen:
     'This class will be the the set up into making the data loader from the data set'
     'The inputs are coming from beams'
-    def __init__(self, data, beams, frames, splits = .8,masker = None, bin_width = .02, time_col =2, normalize = False):
+    def __init__(self, data, beams, frames, splits = .8,masker = None, bin_width = .02, time_col =2, normalize = False, w_0 =1):
         self.data = data
         self.beams = beams
         self.frames = frames
+        self.w_0 = w_0
         self.inputs, self.outputs =  in_out(
             data, beams, frames=frames)
         
@@ -69,11 +99,11 @@ class data_gen:
 
         self.scalers = None
         if normalize == 'SS':
-            sc_in = SS()
-            self.inputs = torch.tensor(sc_in.fit_transform(self.inputs), dtype=torch.float32)*(torch.pi/2)
+            sc_in = SS(new_std=torch.pi/(2*self.w_0))
+            self.inputs = sc_in.fit_transform(self.inputs)
 
-            sc_out = SS()
-            self.outputs = torch.tensor(sc_out.fit_transform(self.outputs), dtype=torch.float32)*(torch.pi/2)
+            sc_out = SS(new_std=torch.pi/(2*self.w_0))
+            self.outputs = sc_out.fit_transform(self.outputs)
 
             self.scalers = [sc_in, sc_out]
     

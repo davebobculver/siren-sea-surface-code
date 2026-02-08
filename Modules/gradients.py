@@ -146,6 +146,6 @@ class take_grad:
                                        create_graph=True)[0][:, 1:2]
         
 
-        laplacian = d2u_dx2 + d2u_dy2
+        laplacian = torch.sqrt(d2u_dx2**2 + d2u_dy2**2)
         
         return laplacian
