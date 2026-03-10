@@ -2,7 +2,7 @@
 'Break apart pre_pro into more professional code'
 
 import torch
-
+from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import MinMaxScaler as MM
 from Modules.beams import beam_trim ## Need to put back to Modules.beams after finished with work
 from torch.utils.data import DataLoader
@@ -93,18 +93,13 @@ class data_gen:
         making the training and ver data loader here"""
 
         'Take an 80/20 split of inputs and outputs.'
-        
-
-
 
         self.scalers = None
         if normalize == 'SS':
             sc_in = SS(new_std=torch.pi/(2*self.w_0))
             self.inputs = sc_in.fit_transform(self.inputs)
-
             sc_out = SS(new_std=torch.pi/(2*self.w_0))
             self.outputs = sc_out.fit_transform(self.outputs)
-
             self.scalers = [sc_in, sc_out]
     
 
@@ -120,11 +115,18 @@ class data_gen:
         if isinstance(normalize, list):
             'only do this for verfication data'
             sc_in = normalize[0]
-            self.inputs = torch.tensor(sc_in.transform(self.inputs), dtype=torch.float32)*(torch.pi/2)
-
             sc_out = normalize[1]
-            self.outputs = torch.tensor(sc_out.transform(self.outputs), dtype=torch.float32)*(torch.pi/2)
+    
+            if isinstance(sc_in, StandardScaler):
+                print('we are in the Standard Scaler')
+                self.inputs =  torch.tensor(sc_in.transform(self.inputs), dtype=torch.float32)*(torch.pi/2)
+                self.outputs = torch.tensor(sc_out.transform(self.outputs), dtype=torch.float32)*(torch.pi/2)
 
+            if isinstance(sc_in, SS):
+                print('we are in the siren section')
+                self.inputs = sc_in.transform(self.inputs)
+                self.outputs = sc_out.transform(self.outputs)
+            
             self.scalers = [sc_in, sc_out]
 
         train_input, train_output, ver_input, ver_output,m = split(self.inputs,

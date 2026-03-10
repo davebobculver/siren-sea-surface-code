@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import Modules.Losses as Losses
-
+import os
 
 def stop(losses, idx, crit = .5, window =20 ,start_idx = 50):
     'losses is a numpy array of shape (n)'
@@ -46,7 +46,7 @@ def tolerance_check(L0, L1, tol):
 class training:
     'This class is a more polisher version of what I have done below'
     
-    def __init__(self, device, dataloader, model_config, optimizer, net, scalers = None, masker = None):
+    def __init__(self, device, dataloader, model_config, optimizer, net, scalers = None, masker = None, w_0 =1):
         self.dataloader = dataloader
         self.net = net 
         self.optimizer = optimizer
@@ -54,6 +54,7 @@ class training:
         self.device = device
         self.scalers = scalers
         self.masker = masker
+        self.w_0 = w_0
 
 
     def set_params(self, net_params, optim_params):
@@ -63,13 +64,14 @@ class training:
 
     def MSE_training(self,max_num_epochs,
                         prints = False, saving = False, save_path =None,
-                        ver_dataloader = None, stopping_crit=None, tolerance = .01, loss_curve = False):
+                        ver_dataloader = None, stopping_crit=None, tolerance = .01, loss_curve = False, count =20):
         
         mse = torch.nn.MSELoss()
         mse_losses, mse_ver = [[], []]
-
+        counter = 0
         stopping = np.zeros(max_num_epochs)
         num_epochs = 0
+        best_loss = 100
         for epoch in range(max_num_epochs):
             num_batch = 0 
             for batch_idx, (batch_x, batch_y) in enumerate(self.dataloader):   # DataLoader gives you batches
@@ -143,20 +145,35 @@ class training:
 
             if prints:
                 print(f'Epoch {epoch} Complete - Avg Loss: {mse_epoch:.6f}')
+
+
             if saving:
-                torch.save({'model_state_dict': self.net.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'epoch': epoch,
-                'model config': self.model_config,
-                'scalers': self.scalers,
-                'masker':self.masker
-            }, save_path)
+                if mse_epoch< best_loss:
+                    best_loss = mse_epoch
+                    print(f'New best loss: {best_loss:.6f} at epoch {epoch}')
+                    torch.save({'model_state_dict': self.net.state_dict(),
+                        'optimizer_state_dict': self.optimizer.state_dict(),
+                        'epoch': epoch,
+                        'model config': self.model_config,
+                        'scalers': self.scalers,
+                        'masker':self.masker,
+                        'w_0': self.w_0
+                        }, save_path)
+                    
+            if mse_epoch < best_loss:
+                counter = 0
+            else:
+                counter +=1
+
+            if counter > count:
+                print(f"loss has not improved in last {counter} epochs. Stoping training and keeping best net.")
+
+        
 
         if loss_curve == True:   
             losses_dict = {
             'mse_losses': mse_losses,
             'mse_ver':mse_ver}
-
             return losses_dict
 
     def reg_training(self,max_num_epochs,

@@ -17,11 +17,15 @@ from sklearn.preprocessing import StandardScaler
 class Evaluator:
     def __init__(self, net, scalers, inputs):
         self.net = net.eval()
-        self.in_scaler = scalers[0]
-        self.out_scaler = scalers[1]
         self.inputs = inputs
         self.pi_half = torch.tensor(np.pi / 2, dtype=torch.float32).to(self.net.device())
-    
+        if scalers is not None:
+            self.in_scaler = scalers[0]
+            self.out_scaler = scalers[1]
+        else:
+            self.in_scaler = None
+            self.out_scaler = None
+        
     def scale_inputs(self):
         """Scale inputs using the input scaler"""
         if self.in_scaler is not None:
@@ -30,10 +34,21 @@ class Evaluator:
                 'This is the old package which i am routing in. The else statement is way better'
                 mean = torch.from_numpy(self.in_scaler.mean_).float().to(self.inputs.device)
                 scale = torch.from_numpy(self.in_scaler.scale_).float().to(self.inputs.device)
+                print(type(self.inputs), type(mean), type(scale))
                 return ((self.inputs - mean) / scale) * self.pi_half
             else:
                 return self.in_scaler.transform(self.inputs)
         return self.inputs
+    
+    def unscale_inputs(self):
+        "This takes in scaled inputs and unscales them"
+        if self.in_scaler is not None:
+            if isinstance(self.in_scaler, StandardScaler):
+                mean = torch.from_numpy(self.in_scaler.mean_).float().to(self.inputs.device)
+                scale = torch.from_numpy(self.in_scaler.scale_).float().to(self.inputs.device)
+                return (self.inputs / self.pi_half) * scale + mean
+            else:
+                return self.in_scaler.inverse_transform(self.inputs)
     
     def unscale_outputs(self, outputs):
         """Inverse transform outputs back to original scale"""
@@ -47,14 +62,35 @@ class Evaluator:
         return outputs
     
     def net_eval(self):
-        """Evaluate network with automatic scaling"""
+        """Evaluate network with automatic scaling
+        """
         with torch.no_grad():
             scaled_inputs = self.scale_inputs()
             scaled_outputs = self.net(scaled_inputs)
-            print(f"Raw network output range: {scaled_outputs.min():.3f} to {scaled_outputs.max():.3f}")
-            
             outputs = self.unscale_outputs(scaled_outputs)
+
         return outputs
+    
+    def net_eval_scaled(self, outputs):
+        "This class tells the object to compute the result of the inputs through the NN, if the inputs where already scaled"
+        "It then unscales the outputs, and unscales the inputs and returns them. "
+        with torch.no_grad():
+            scaled_pred = self.net(self.inputs)
+            pred = self.unscale_outputs(outputs=scaled_pred)
+
+        unscaled_outputs = self.unscale_outputs(outputs)
+        unscaled_inputs = self.unscale_inputs()
+        return pred, unscaled_inputs, unscaled_outputs
+    
+    def net_eval_scaled_with_grad(self):
+        "This class tells the object to compute the result of the inputs through the NN, if the inputs where already scaled"
+        "It then unscales the outputs, and unscales the inputs and returns them. "
+        with torch.no_grad():
+            scaled_outputs = self.net(self.inputs)
+            outputs = self.unscale_outputs(outputs=scaled_outputs)
+
+        unscaled_inputs = self.unscale_inputs()
+        return outputs, unscaled_inputs       
     
     def net_eval_with_grad(self):
         """Evaluate network while keeping gradients"""

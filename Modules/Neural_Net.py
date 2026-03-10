@@ -21,7 +21,7 @@ class Net(torch.nn.Module):
 
         for i, m in enumerate(self.hidden_layers):
             self.initialize_weights(m, i)
-        print(self.hidden_layers)
+
     
     def initialize_weights(self, m, i):
         if isinstance(m, torch.nn.Linear):
@@ -31,9 +31,11 @@ class Net(torch.nn.Module):
                 bound = math.sqrt(6 / m.in_features)
                 if i ==0:
                     torch.nn.init.uniform_(m.weight, -bound, bound)
-                else:
-                    torch.nn.init.uniform_(m.weight, bound/(-self.w_0), bound/(self.w_0))
-                m.bias.data.fill_(0.0)
+                    torch.nn.init.uniform_(m.bias, -bound, bound)
+                else: 
+                    "they say this can improve training speed"
+                    torch.nn.init.uniform_(m.weight, bound/(-(self.w_0)**2), bound/((self.w_0)**2))
+                    torch.nn.init.uniform_(m.bias, bound/(-(self.w_0)**2), bound/((self.w_0)**2))
             else:
                 torch.nn.init.xavier_normal_(m.weight)
                 m.bias.data.fill_(0.1)
