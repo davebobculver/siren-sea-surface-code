@@ -34,11 +34,14 @@ class Evaluator:
                 'This is the old package which i am routing in. The else statement is way better'
                 mean = torch.from_numpy(self.in_scaler.mean_).float().to(self.inputs.device)
                 scale = torch.from_numpy(self.in_scaler.scale_).float().to(self.inputs.device)
-                print(type(self.inputs), type(mean), type(scale))
+                # print(type(self.inputs), type(mean), type(scale))
                 return ((self.inputs - mean) / scale) * self.pi_half
             else:
+
                 return self.in_scaler.transform(self.inputs)
-        return self.inputs
+            
+
+        return "No Scaler"
     
     def unscale_inputs(self):
         "This takes in scaled inputs and unscales them"
@@ -69,7 +72,7 @@ class Evaluator:
             scaled_outputs = self.net(scaled_inputs)
             outputs = self.unscale_outputs(scaled_outputs)
 
-        return outputs
+        return outputs, scaled_outputs
     
     def net_eval_scaled(self, outputs):
         "This class tells the object to compute the result of the inputs through the NN, if the inputs where already scaled"

@@ -125,6 +125,8 @@ class take_grad:
                                     grad_outputs=grad_outs, create_graph=True)[0]
         return(grad)
     
+
+
     def second_grad(self):
 
         grad_outs = torch.ones_like(self.outputs)
@@ -132,20 +134,32 @@ class take_grad:
                                          grad_outputs=grad_outs, create_graph=True)[0]
         
 
-        du_dx = first_grad[:, 0:1]  
-        du_dy = first_grad[:, 1:2]  
+        dx = first_grad[:, 0:1]  
+        dy = first_grad[:, 1:2] 
+        dt = first_grad[:, 2:3] 
         
 
-        d2u_dx2 = torch.autograd.grad(outputs=du_dx, inputs=self.inputs,
-                                       grad_outputs=torch.ones_like(du_dx),
-                                       create_graph=True, retain_graph=True)[0][:, 0:1]
+        ddx = torch.autograd.grad(outputs=dx, inputs=self.inputs,
+                                       grad_outputs=torch.ones_like(dx),
+                                       create_graph=True, retain_graph=True)[0]
         
 
-        d2u_dy2 = torch.autograd.grad(outputs=du_dy, inputs=self.inputs,
-                                       grad_outputs=torch.ones_like(du_dy),
-                                       create_graph=True)[0][:, 1:2]
+        ddy = torch.autograd.grad(outputs=dy, inputs=self.inputs,
+                                       grad_outputs=torch.ones_like(dy),
+                                       create_graph=True)[0]
+        
+        ddt = torch.autograd.grad(outputs=dt, inputs=self.inputs,
+                                    grad_outputs=torch.ones_like(dt),
+                                    create_graph=True)[0]
+        
+        hessian = torch.stack([ddx, ddy, ddt], dim = 2)
+
+
+        d2u_dx2 = ddx[:,0:1]
+        d2u_dy2 = ddy[:,1:2]
+
         
 
         laplacian = torch.sqrt(d2u_dx2**2 + d2u_dy2**2)
         
-        return laplacian
+        return laplacian, hessian

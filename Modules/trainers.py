@@ -46,7 +46,7 @@ def tolerance_check(L0, L1, tol):
 class training:
     'This class is a more polisher version of what I have done below'
     
-    def __init__(self, device, dataloader, model_config, optimizer, net, scalers = None, masker = None, w_0 =1):
+    def __init__(self, device, dataloader, model_config, optimizer, net, scalers = None, masker = None, w_0 =1, act = None):
         self.dataloader = dataloader
         self.net = net 
         self.optimizer = optimizer
@@ -55,6 +55,7 @@ class training:
         self.scalers = scalers
         self.masker = masker
         self.w_0 = w_0
+        self.act = act
 
 
     def set_params(self, net_params, optim_params):
@@ -62,18 +63,129 @@ class training:
         self.optimizer.load_state_dict(optim_params)
 
 
+    # def MSE_training(self,max_num_epochs,
+    #                     prints = False, saving = False, save_path =None,
+    #                     ver_dataloader = None, stopping_crit=None, tolerance = .01, loss_curve = False, count =20):
+        
+    #     mse = torch.nn.MSELoss()
+    #     mse_losses, mse_ver = [[], []]
+    #     counter = 0
+    #     stopping = np.zeros(max_num_epochs)
+    #     num_epochs = 0
+    #     best_loss = 100
+    #     for epoch in range(max_num_epochs):
+    #         num_batch = 0 
+    #         for batch_idx, (batch_x, batch_y) in enumerate(self.dataloader):   # DataLoader gives you batches
+    #             # Move to GPU
+    #             batch_x = batch_x.to(self.device)
+    #             batch_y = batch_y.to(self.device)
+    #             self.optimizer.zero_grad(set_to_none = True)
+
+    #             loss = mse(self.net(batch_x), batch_y)
+    #             loss.backward()
+    #             self.optimizer.step()            
+    #             if prints:
+    #                 if batch_idx % 100== 0:
+    #                     print(f'Epoch {epoch}, Batch {batch_idx}, Loss: {loss.item():.6f}')
+    #             num_batch+= 1
+
+
+    #         if loss_curve == True:
+    #             mse_epoch = 0.0
+    #             for (batch_x, batch_y) in self.dataloader:
+    #                 batch_x = batch_x.to(self.device)
+    #                 batch_y = batch_y.to(self.device)
+    #                 mse_batch = mse(self.net(batch_x), batch_y).item()
+    #                 mse_epoch += mse_batch
+    #             mse_epoch /= num_batch
+    #             mse_losses.append(mse_epoch/num_batch)
+                    
+    #             mse_ver_epoch = 0.0
+    #             for (batch_x, batch_y) in ver_dataloader:
+    #                 batch_x = batch_x.to(self.device)
+    #                 batch_y = batch_y.to(self.device)
+    #                 mse_ver_epoch += mse(self.net(batch_x), batch_y).item()
+    #             mse_ver_epoch /= num_batch
+    #             mse_ver.append(mse_ver_epoch)
+    #         else: 
+    #             mse_epoch = loss.item()    
+    #         'Stopping Crits'
+    #         # Loss Spike Detection
+    #         if stopping_crit is not None:
+    #             stopping[epoch] = mse_epoch
+
+    #             try:
+    #                 should_stop = stop(stopping, epoch, crit=stopping_crit)
+    #                 if not isinstance(should_stop, (bool, np.bool_)):
+    #                     raise TypeError(f"stop() returned a non-bool: {type(should_stop)}")
+    #                 if should_stop:
+    #                     print(f"Early stopping triggered at epoch {epoch}. Validation loss spike detected.")
+    #                     break
+    #             except ValueError as e:
+    #                 print(f"Skipping early stopping check: {e}")
+
+    #         # Convergence Check: Training Loss
+    #         if tolerance is not None:
+    #             if epoch > 1:
+    #                 if tolerance_check(mse_losses[-2], mse_losses[-1], tol=tolerance):
+    #                     print(f"Training has converged at epoch {epoch}.")
+    #                     break
+
+    #             # Convergence Check: Validation Loss
+    #             if epoch > 1:
+    #                 if tolerance_check(mse_ver[-2], mse_ver[-1], tol=tolerance):
+    #                     print(f"Validation has converged at epoch {epoch}.")
+    #                     break
+                    
+    #         # low error check
+    #         if mse_epoch/(.06**2)<1:
+    #             print(f'Low training error: {mse_epoch}<1')
+    #             print(f"Finished training at epoch {epoch}")
+    #             break
+
+
+    #         if prints:
+    #             print(f'Epoch {epoch} Complete - Avg Loss: {mse_epoch:.6f}')
+
+
+    #         if saving:
+    #             if mse_epoch< best_loss:
+    #                 best_loss = mse_epoch
+    #                 print(f'New best loss: {best_loss:.6f} at epoch {epoch}')
+    #                 torch.save({'model_state_dict': self.net.state_dict(),
+    #                     'optimizer_state_dict': self.optimizer.state_dict(),
+    #                     'epoch': epoch,
+    #                     'model config': self.model_config,
+    #                     'scalers': self.scalers,
+    #                     'masker':self.masker,
+    #                     'w_0': self.w_0
+    #                     }, save_path)
+                    
+    #         if mse_epoch < best_loss:
+    #             counter = 0
+    #         else:
+    #             counter +=1
+
+    #         if counter > count:
+    #             print(f"loss has not improved in last {counter} epochs. Stoping training and keeping best net.")
+
+        
+
+    #     if loss_curve == True:   
+    #         losses_dict = {
+    #         'mse_losses': mse_losses,
+    #         'mse_ver':mse_ver}
+    #         return losses_dict
+    
     def MSE_training(self,max_num_epochs,
-                        prints = False, saving = False, save_path =None,
-                        ver_dataloader = None, stopping_crit=None, tolerance = .01, loss_curve = False, count =20):
+                        prints = False, saving = False, save_path =None, count =20):
         
         mse = torch.nn.MSELoss()
-        mse_losses, mse_ver = [[], []]
+        mse_losses= []
         counter = 0
-        stopping = np.zeros(max_num_epochs)
-        num_epochs = 0
         best_loss = 100
-        for epoch in range(max_num_epochs):
-            num_batch = 0 
+        for epoch in range(max_num_epochs): 
+            losses = []
             for batch_idx, (batch_x, batch_y) in enumerate(self.dataloader):   # DataLoader gives you batches
                 # Move to GPU
                 batch_x = batch_x.to(self.device)
@@ -86,62 +198,12 @@ class training:
                 if prints:
                     if batch_idx % 100== 0:
                         print(f'Epoch {epoch}, Batch {batch_idx}, Loss: {loss.item():.6f}')
-                num_batch+= 1
 
+                losses.append(loss.item())
 
-            if loss_curve == True:
-                mse_epoch = 0.0
-                for (batch_x, batch_y) in self.dataloader:
-                    batch_x = batch_x.to(self.device)
-                    batch_y = batch_y.to(self.device)
-                    mse_batch = mse(self.net(batch_x), batch_y).item()
-                    mse_epoch += mse_batch
-                mse_epoch /= num_batch
-                mse_losses.append(mse_epoch/num_batch)
-                    
-                mse_ver_epoch = 0.0
-                for (batch_x, batch_y) in ver_dataloader:
-                    batch_x = batch_x.to(self.device)
-                    batch_y = batch_y.to(self.device)
-                    mse_ver_epoch += mse(self.net(batch_x), batch_y).item()
-                mse_ver_epoch /= num_batch
-                mse_ver.append(mse_ver_epoch)
-            else: 
-                mse_epoch = loss.item()    
-            'Stopping Crits'
-            # Loss Spike Detection
-            if stopping_crit is not None:
-                stopping[epoch] = mse_epoch
-
-                try:
-                    should_stop = stop(stopping, epoch, crit=stopping_crit)
-                    if not isinstance(should_stop, (bool, np.bool_)):
-                        raise TypeError(f"stop() returned a non-bool: {type(should_stop)}")
-                    if should_stop:
-                        print(f"Early stopping triggered at epoch {epoch}. Validation loss spike detected.")
-                        break
-                except ValueError as e:
-                    print(f"Skipping early stopping check: {e}")
-
-            # Convergence Check: Training Loss
-            if tolerance is not None:
-                if epoch > 1:
-                    if tolerance_check(mse_losses[-2], mse_losses[-1], tol=tolerance):
-                        print(f"Training has converged at epoch {epoch}.")
-                        break
-
-                # Convergence Check: Validation Loss
-                if epoch > 1:
-                    if tolerance_check(mse_ver[-2], mse_ver[-1], tol=tolerance):
-                        print(f"Validation has converged at epoch {epoch}.")
-                        break
-                    
-            # low error check
-            if mse_epoch/(.06**2)<1:
-                print(f'Low training error: {mse_epoch}<1')
-                print(f"Finished training at epoch {epoch}")
-                break
-
+            
+            mse_epoch = torch.tensor(losses)
+            mse_epoch = mse_epoch.mean().item()
 
             if prints:
                 print(f'Epoch {epoch} Complete - Avg Loss: {mse_epoch:.6f}')
@@ -149,6 +211,7 @@ class training:
 
             if saving:
                 if mse_epoch< best_loss:
+                    counter = 0
                     best_loss = mse_epoch
                     print(f'New best loss: {best_loss:.6f} at epoch {epoch}')
                     torch.save({'model_state_dict': self.net.state_dict(),
@@ -157,24 +220,26 @@ class training:
                         'model config': self.model_config,
                         'scalers': self.scalers,
                         'masker':self.masker,
+                        'act': self.act,
                         'w_0': self.w_0
                         }, save_path)
                     
-            if mse_epoch < best_loss:
-                counter = 0
-            else:
-                counter +=1
+
+
+            counter +=1
+
+            mse_losses.append(mse_epoch)
 
             if counter > count:
                 print(f"loss has not improved in last {counter} epochs. Stoping training and keeping best net.")
+                break
 
+
+        losses_dict = {
+            'mse_losses': mse_losses}
         
-
-        if loss_curve == True:   
-            losses_dict = {
-            'mse_losses': mse_losses,
-            'mse_ver':mse_ver}
-            return losses_dict
+        losses_path = save_path.replace('.pt', '_losses_dict.pt')
+        torch.save(losses_dict, losses_path)
 
     def reg_training(self,max_num_epochs,
                         prints = False, saving = False, save_path =None, lx = 0, ly = 0 , lt = 0,

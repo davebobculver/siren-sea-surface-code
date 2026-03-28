@@ -123,7 +123,7 @@ class data_gen:
                 self.outputs = torch.tensor(sc_out.transform(self.outputs), dtype=torch.float32)*(torch.pi/2)
 
             if isinstance(sc_in, SS):
-                print('we are in the siren section')
+                # print('we are in the siren section')
                 self.inputs = sc_in.transform(self.inputs)
                 self.outputs = sc_out.transform(self.outputs)
             
