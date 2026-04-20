@@ -81,13 +81,12 @@ class SS():
 class data_gen:
     'This class will be the the set up into making the data loader from the data set'
     'The inputs are coming from beams'
-    def __init__(self, data, beams, frames, splits = .8,masker = None, bin_width = .02, time_col =2, normalize = False, w_0 =1):
+    def __init__(self, data, beams, frames, splits = .8,masker = None, bin_width = .02, time_col =2, normalize = False, w_0 =1, new_std = 1.0 ):
         self.data = data
         self.beams = beams
         self.frames = frames
         self.w_0 = w_0
-        self.inputs, self.outputs =  in_out(
-            data, beams, frames=frames)
+        self.inputs, self.outputs =  in_out(data, beams, frames=frames)
         
         """If we are smart here we can do all our work just 
         making the training and ver data loader here"""
@@ -96,9 +95,9 @@ class data_gen:
 
         self.scalers = None
         if normalize == 'SS':
-            sc_in = SS(new_std=torch.pi/(2*self.w_0))
+            sc_in = SS(new_std=new_std)
             self.inputs = sc_in.fit_transform(self.inputs)
-            sc_out = SS(new_std=torch.pi/(2*self.w_0))
+            sc_out = SS(new_std=new_std)
             self.outputs = sc_out.fit_transform(self.outputs)
             self.scalers = [sc_in, sc_out]
     

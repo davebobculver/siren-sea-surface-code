@@ -160,6 +160,6 @@ class take_grad:
 
         
 
-        laplacian = torch.sqrt(d2u_dx2**2 + d2u_dy2**2)
+        laplacian = d2u_dx2 + d2u_dy2
         
         return laplacian, hessian
