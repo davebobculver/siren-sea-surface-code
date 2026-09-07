@@ -1,33 +1,46 @@
 import torch
 import numpy as np
+import math
 
+
+'BIG ISSUES IN HERE!!!!!!!'
+'NEED TO TRIPTLE CHECK INTIALIZATION'
 
 class Net(torch.nn.Module):
-    def __init__(self, act, input_size,  *args):
+    def __init__(self, act, input_size,  *args, w_0 =1, siren =False):
         super(Net, self).__init__()
         self.act = act 
+        self.w_0 = w_0
+        self.siren = siren
         self.hidden_layers = torch.nn.ModuleList()
         for layer_size in args:
             self.hidden_layers.append(torch.nn.Linear(input_size, layer_size))
             input_size = layer_size
-
         # Output layer
         self.output_layer = torch.nn.Linear(input_size, 1)
-        self.initialize_weights
+
+        for i, m in enumerate(self.hidden_layers):
+            self.initialize_weights(m, i)
+
+        self.initialize_weights(self.output_layer, i=1)
+
     
-    def initialize_weights(self):
-        for layer in self.hidden_layers:
+    def initialize_weights(self, m, i):
+        if isinstance(m, torch.nn.Linear):
             if self.act == torch.relu:
-                torch.nn.init.kaiming_normal_(layer.weight, nonlinearity='relu')
+                torch.nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+            elif self.siren:
+
+                bound = math.sqrt(6 /( m.in_features))
+                if i ==0:
+                    torch.nn.init.uniform_(m.weight, -bound, bound)
+                    torch.nn.init.uniform_(m.bias, -bound, bound)
+                else: 
+                    torch.nn.init.uniform_(m.weight, bound/(-(self.w_0**2)), bound/((self.w_0**2)))
+                    torch.nn.init.uniform_(m.bias, bound/(-(self.w_0**2)), bound/((self.w_0**2)))
             else:
-                torch.nn.init.xavier_normal_(layer.weight)
-            layer.bias.data.fill_(0.1)
-        
-        if self.act == torch.relu:
-            torch.nn.init.kaiming_normal_(self.output_layer.weight, nonlinearity='relu')
-        else:
-            torch.nn.init.xavier_normal_(self.output_layer.weight)
-        self.output_layer.bias.data.fill_(0.01)
+                torch.nn.init.xavier_normal_(m.weight)
+                m.bias.data.fill_(0.1)
 
     def forward(self, x):
         for layer in self.hidden_layers:
@@ -39,6 +52,21 @@ class Net(torch.nn.Module):
         return next(self.parameters()).device
 
         
+# w_0 =1
+# # model_config = model['model config']
+# model_config = (3, 280, 550,1000, 100)
+# net = Net(torch.sin, *model_config, w_0 = w_0).to('cuda')
+# optimizer = torch.optim.Adam(net.parameters(), lr=1e-4)
+
+
+class Sine(torch.nn.Module):
+    def __init__(self, w_0):
+        super().__init__()
+        self.w_0 = w_0
+    
+    def forward(self, x):
+        return torch.sin(self.w_0*x)
+
 """Below is a function used to evaluate an optimized nueral network
 and make the outputs ready to be plotted."""
 
