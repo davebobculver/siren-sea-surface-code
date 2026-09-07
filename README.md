@@ -77,9 +77,7 @@ same computational graph that produced its values, and it never commits to a gri
 ### Why sinusoidal activations
 
 The workhorse here is a sine-activated MLP, in the SIREN family of Sitzmann et al.
-(2020) — with a caveat about which initialization the shipped models actually used,
-in *Known rough edges* below. The reasoning is short and it is the whole reason the
-project works:
+(2020). The reasoning is short and it is the whole reason the project works:
 
 **The derivative of a sine network is a sine network.** With ReLU, the second
 derivative is identically zero almost everywhere, so curvature is not merely
@@ -250,8 +248,9 @@ Each one is a question I was trying to answer, not a tutorial.
        recover what they mean. Spell it out here. -->
 - `nets/cat_vid/{relu,tanh,siren}.pt` — the activation comparison.
 - `nets/init_siren/mod1..mod5.pt` — the initialization sweep.
-- `nets/xavier*.pt` — sine activation, Xavier init. See the note below; this is
-  what most of the shipped models actually are.
+- `nets/xavier*.pt` — sine activation with Xavier initialization, which is the
+  branch `training_all.py` takes (`siren=False`).
+- `nets/siren_init.pt` — the SIREN initialization scheme instead.
 - `*_losses_dict.pt` — the loss curve for the checkpoint of the same name.
 - `data/e_10000_a_5.pt` — 10 000 epochs, regularizer weight $\alpha = 5$.
 
