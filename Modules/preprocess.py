@@ -81,7 +81,9 @@ class SS():
 class data_gen:
     'This class will be the the set up into making the data loader from the data set'
     'The inputs are coming from beams'
-    def __init__(self, data, beams, frames, splits = .8,masker = None, bin_width = .02, time_col =2, normalize = False, w_0 =1, new_std = 1.0 ):
+    def __init__(self, data, beams, frames, splits = .8,masker = None,
+                  bin_width = .02, time_col =2, normalize = False, w_0 =1, new_std = 1.0,
+                   datatype = 'FrameDataset' ):
         self.data = data
         self.beams = beams
         self.frames = frames
@@ -133,14 +135,19 @@ class data_gen:
                                                                 split = splits,
                                                                 mask =masker)
         self.m = m
+        if datatype == 'FrameDataset':
+            self.train_dataset = FrameDataset(train_input, train_output,
+                                        bin_width= bin_width,
+                                        time_col=time_col)
+            
+            self.ver_dataset = FrameDataset(ver_input, ver_output,
+                                bin_width= bin_width,
+                                time_col=time_col)
+        else:
+            self.train_dataset = torch.utils.data.TensorDataset(train_input, train_output)
+            
+            self.ver_dataset = torch.utils.data.TensorDataset(ver_input, ver_output)
 
-        self.train_dataset = FrameDataset(train_input, train_output,
-                                    bin_width= bin_width,
-                                    time_col=time_col)
-        
-        self.ver_dataset = FrameDataset(ver_input, ver_output,
-                            bin_width= bin_width,
-                            time_col=time_col)
 
     def get_mask(self):
         "return mask for repeatability"
