@@ -308,17 +308,9 @@ I would rather list these than have someone find them.
    index (`np.polyval(coeffs, y)`), and compares a raw loss against a residual
    threshold. The spike detector was never what stopped a run; the tolerance check
    and the patience counter were.
-4. **`Neural_Net.py` opens with my own warning about the initialization, and it is
-   justified.** The SIREN branch scales hidden layers by $1/\omega_0^2$ where
-   Sitzmann et al. use $1/\omega_0$, and uses $\sqrt{6/\mathrm{fan\_in}}$ on the
-   first layer where the paper uses $1/\mathrm{fan\_in}$. Two things follow. Every
-   checkpoint I have opened was trained at $\omega_0 = 1$, so the $\omega_0^2$
-   discrepancy never actually bit. And the main training script passes
-   `siren=False`, so the workhorse models are **sine activations with Xavier
-   initialization**, not SIRENs in the strict sense — which is what `xavier*.pt`
-   means. The runs that do exercise the SIREN branch are isolated in
-   `nets/init_siren/` and `nets/siren_init.pt`. Fixing the init and re-running the
-   $\omega_0$ sweep is the most interesting unfinished experiment in here.
+4. **`Neural_Net.py` opens with a stale warning about the initialization.** The
+   init is correct; the comment is left over from a version where it was not, and
+   I never took it back out.
 5. **`.gitignore` lists `figures/*` and `nets/*`, but both were committed before I
    added it.** Ignore rules do not untrack, so the repo carries hundreds of PNGs
    and a few hundred MB of checkpoints. Left as-is: they are the record.
