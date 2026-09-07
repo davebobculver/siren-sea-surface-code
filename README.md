@@ -27,9 +27,9 @@ autograd rather than out of finite differences on an interpolated grid.
 
 ## Read this first
 
-**This is the lab notebook, not the paper.** This containes messy ideas, deadends, undeleted comments, and
+This containes messy ideas, deadends, undeleted comments, and
 overall slop. That being said it also contains the full training pipeline, the initialization, and how I preprocessed 
-and plotted some of the data. 
+and plotted some of the data. It shows how I think about writing code, and getting projects done
 
 A zenodo repository will also be associated with this work that will contain a cleaner and more consice demonstration of the 
 data and software of this paper. Also, if you want to pick my brain about how this all work please shoot me an 
